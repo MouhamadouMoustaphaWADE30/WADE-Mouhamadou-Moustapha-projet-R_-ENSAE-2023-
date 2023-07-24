@@ -1,0 +1,556 @@
+---
+title: "PARTIE 1 ET 2 DU PROJET R"
+author: "Mouhamadou Moustapha WADE"
+format: pdf
+editor: visual
+toc: true
+---
+
+{{< pagebreak >}}
+
+#Partie I
+
+## 1.1.2 Importation et mise en forme
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+# Installer et charger la bibliothèque readxl pour importer des fichiers Excel
+library(readxl)
+library(dplyr)
+library(flextable)
+library(gt)
+```
+
+### 1.1.2.1: Importer la base de données dans un objet de type data.frame nommé "projet"
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+projet <- read_excel("Base_Partie_1.xlsx")
+```
+
+### 1.1.2.2: Sélectionner les variables mentionnées dans la section de description
+
+```{r message=FALSE, warning=FALSE}
+variables_selectionnees <-projet %>% select(-c("key"))
+```
+
+### 1.1.2.3: Faire un tableau résumant les valeurs manquantes par variable
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+tableau_valeurs_manquantes <- data.frame(Variables = names(variables_selectionnees), 
+                                         Valeurs_Manquantes = colSums(is.na(variables_selectionnees)))
+# Display the gt table
+tab_valeurs_manquantes <- gt(tableau_valeurs_manquantes)
+tableau_valeurs_manquantes
+```
+
+### 1.1.2.4: Vérifier s'il y a des valeurs manquantes pour la variable "key" dans la base de données "projet"
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+valeurs_manquantes_key <-projet[is.na(projet$key),"key"]
+#  Faire un tableau 
+tableau_valeurs_manquantes_key <- data.frame(Variables = names(valeurs_manquantes_key),
+                                             Valeurs_Manquantes = colSums(is.na(valeurs_manquantes_key)))
+# Convert the data frame to a flex table
+tableau_valeurs_manquantes_key <- gt(tableau_valeurs_manquantes_key)
+tableau_valeurs_manquantes_key
+```
+
+## 1.1.3 Création de variables
+
+### 1.1.3.1: Renommer les variables spécifiées
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+#1.3) Creation de variables 
+
+library(dplyr)
+library(flextable)
+
+#  1: Renommer les variables spécifiées
+projet <- projet %>%
+  rename(region = q1,
+         departement = q2,
+         sexe = q23)
+```
+
+### 1.1.3.2: Créer la variable sexe_2 qui vaut 1 si sexe est égal à "Femme"et 0 sinon
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+projet <- projet %>%
+  mutate(sexe_2 = ifelse(sexe == "Femme", 1, 0))
+```
+
+### 1.1.3.3: Créer le data.frame langues en extrayant les variables correspondantes
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+variables_langues <- grep("^q24a_", names(projet), value = TRUE)
+langues <- projet %>%
+  select(key, all_of(variables_langues))
+```
+
+### 1.1.3.4: Créer la variable "parle" qui représente le nombre de langues parlées par le dirigeant de la PME
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+langues <- langues %>%
+  mutate(parle = rowSums(.[variables_langues]))
+```
+
+### 1.1.3.5: Sélectionner uniquement les variables "key" et "parle" pour obtenir l'objet "langues"
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+langues <- langues %>%
+  select(key, parle)
+```
+
+### 1.1.3.6 : Fusionner les data.frames "projet_final" et "langues" en utilisant la variable "key"
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+projet <- projet %>%
+  left_join(langues, by = "key")
+```
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+#  Faire un tableau 
+tableau_projet <- data.frame(Variables = names(projet),
+                                         Valeurs_Manquantes = colSums(is.na(projet)))
+tab_Mean <- flextable::as_flextable(tableau_projet)
+tab_Mean
+
+```
+
+## 1.2 Analyses descriptives
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+# Charger les packages nécessaires 
+library(dplyr)
+library(gtsummary)
+library(lubridate)
+library(ggplot2)
+```
+
+###(1.2.1 Répartition suivant les variables sexe,niveau d'instruction, ###proprietaire ou locataire et statut juridique)
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+#Quelle est la répartion des PME suivant:
+projet <- projet %>%
+  rename(niveau_instruction= q25,
+         proprietaire_locataire = q81,
+         statut_juridique = q12)
+# Répartition suivant les variables denandées
+
+Statisitiques_des_variables<-projet %>% tbl_summary(include =c(sexe,niveau_instruction,proprietaire_locataire,statut_juridique),
+missing_text=("valeurs manquantes")
+    )
+Statisitiques_des_variables
+```
+
+### 1.2.2 Créer le tableau récapitulatif global avec toutes les analyses demandées
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+Differentes_croisement<-projet%>%tbl_summary(include=c(sexe,niveau_instruction,
+                                                       proprietaire_locataire,statut_juridique),by=sexe,percent = "column",statistic=list(sexe~"{p}%", niveau_instruction~"{p}%", proprietaire_locataire~"{p}",statut_juridique~"{p}")) %>% 
+  add_n()%>%
+  add_stat_label()%>%
+  add_overall()%>%
+  as_flex_table()
+Differentes_croisement
+```
+
+#### 1.2.2.1 Répartition par statut juridique , propriétaire locataire et niveau d'instruction par la variable sexe et différentes graphiques
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+
+# Créer le tableau récapitulatif pour la répartition par statut juridique etsexe
+tableau_repartition_statut_sexe <- projet %>%
+  tbl_cross(
+    row =statut_juridique,
+    col = sexe,
+    percent = "row"
+  )%>%
+  add_p(source_note=TRUE)
+tableau_repartition_statut_sexe
+# Créer le graphique pour mieux visualiser les résultats
+graphique1<- ggplot(projet, aes(x = sexe, fill = statut_juridique)) +
+  geom_bar(position = "fill") +
+  labs(title = "Répartition du niveau d'instruction par sexe") +
+  theme_minimal()
+graphique1
+
+# Créer le tableau récapitulatif pour la répartition par niveau d'instruction
+#et sexe
+tableau_repartition_niveau_sexe <- projet %>%
+  tbl_cross(
+    row =niveau_instruction,
+    col = sexe,
+    percent = "row"
+  )%>%
+  add_p(source_note=TRUE)
+tableau_repartition_niveau_sexe
+# Créer le graphique pour mieux visualiser les résultats
+graphique2 <- ggplot(projet, aes(x = sexe, fill = niveau_instruction)) +
+  geom_bar(position = "fill") +
+  labs(title = "Répartition du niveau d'instruction par sexe") +
+  theme_minimal()
+graphique2
+
+# Créer le tableau récapitulatif pour la répartition de propriétaire/locataire suivant le sexe
+tableau_repartition_proprietaire_sexe <- projet %>%
+  tbl_cross(
+    row =proprietaire_locataire,
+    col = sexe,
+    percent = "row"
+  )%>%
+  add_p(source_note=TRUE)
+
+tableau_repartition_proprietaire_sexe
+# Créer le graphique pour mieux visualiser les résultats
+graphique3 <- ggplot(projet, aes(x = sexe, fill = proprietaire_locataire)) +
+  geom_bar(position = "fill") +
+  labs(title = "Répartition du proprietaire_locataire par sexe") +
+  theme_minimal()
+graphique3
+
+```
+
+####1.2.2.2Priorisez une analyse par filière
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+#Nommer les filières d'abord
+projet <- projet %>%
+  rename("Arachide" = filiere_1,
+         "Anacarde" = filiere_2,
+         "Mangue" = filiere_3,
+         "Riz" = filiere_4)
+library(gtsummary)
+library(dplyr)
+t1<-subset(projet,Arachide==1)%>%
+dplyr:: select(sexe,niveau_instruction,statut_juridique,proprietaire_locataire,Arachide) %>%
+  gtsummary::tbl_summary(
+    by=Arachide,
+    statistic = list(
+      all_categorical()~ "{n}/{N} ({p}%)"
+    ),
+    missing = "no",
+    percent = "column"
+    ) %>%
+  modify_header(label ~ "**variable**") %>%
+  bold_labels()
+t1
+
+t2<-subset(projet,Anacarde==1)%>%
+  dplyr:: select(sexe,niveau_instruction,statut_juridique,proprietaire_locataire,Anacarde) %>%
+  gtsummary::tbl_summary(
+    by=Anacarde,
+    statistic = list(
+      all_categorical()~ "{n}/{N} ({p}%)"
+    ),
+    missing = "no",
+    percent = "column"
+  ) %>%
+  modify_header(label ~ "**variable**") %>%
+  bold_labels()
+t2
+
+t3<-subset(projet,Mangue==1)%>%
+  dplyr:: select(sexe,niveau_instruction,statut_juridique,proprietaire_locataire
+                 ,Mangue) %>%
+  gtsummary::tbl_summary(
+    by=Mangue,
+    statistic = list(
+      all_categorical()~ "{n}/{N} ({p}%)"
+    ),
+    missing = "no",
+    percent = "column"
+  ) %>%
+  modify_header(label ~ "**variable**") %>%
+  bold_labels()
+t3
+
+t4<-subset(projet,Riz==1)%>%
+  dplyr:: select(sexe,niveau_instruction,statut_juridique,proprietaire_locataire
+                 ,Riz) %>%
+  gtsummary::tbl_summary(
+    by=Riz,
+    statistic = list(
+      all_categorical()~ "{n}/{N} ({p}%)"
+    ),
+    missing = "no",
+    percent = "column"
+  ) %>%
+  modify_header(label ~ "**variable**") %>%
+  bold_labels()
+t4
+gtsummary:: tbl_merge(list(t1,t2,t3,t4),
+                      tab_spanner = c("Arachide","Anacarde","Mangue","Riz"))
+
+```
+
+## 1.3 Un peu de cartographie
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+library(sf)
+library(ggplot2)
+library(rnaturalearth)
+library(RColorBrewer)
+library(leaflet)
+library(htmlwidgets)
+library(dplyr)
+## Obtenir les limites géographiques du Sénégal à partir de rnaturalearth
+senegal <- ne_countries(country = "Senegal", returnclass = "sf")
+
+```
+
+###1.3.1 Charger les données depuis le fichier Excel et créer un objet sf
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+data <- readxl::read_excel("Base_Partie_1.xlsx")
+projet_map <- st_as_sf(data, coords = c("gps_menlongitude", "gps_menlatitude"), crs = 4326)
+
+# Jointure spatiale entre les données de projet_map et les limites géographiques du Sénégal
+projet_map <- st_join(projet_map, senegal)
+
+```
+
+### 1.3.2 Représentation spatiale des PME suivant le sexe
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+library(sf)
+projet_map <- st_as_sf(projet, coords = c("gps_menlongitude", "gps_menlatitude")
+                       , crs = 4326)
+
+ # contours
+ sen_contours <- st_read("Limite_Région.shp")
+ names(sen_contours)[1] <-"region" 
+ ggplot()+
+   geom_sf(data=sen_contours,fill="beige",color="black")+
+   geom_sf(data=projet_map,aes(color=sexe),size=2.5)+
+   geom_sf_text(data=sen_contours,aes(label=region),size=2.5)+
+   scale_color_manual(values = c("black", "red")) +
+ theme_void()+
+ theme(legend.position = "right")+
+ labs(title="carte des PME par sexe",color="sexe")
+```
+
+### 1.3.3 Représentation spatiale des PME suivant le niveau d'instruction
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+library(sf)
+projet_map <- st_as_sf(projet, coords = c("gps_menlongitude", "gps_menlatitude")
+                       , crs = 4326)
+
+ # contours
+ sen_contours <- st_read("Limite_Région.shp")
+ names(sen_contours)[1] <-"region" 
+ ggplot()+
+   geom_sf(data=sen_contours,fill="beige",color="black")+
+   geom_sf(data=projet_map,aes(color=niveau_instruction),size=2.5)+
+   geom_sf_text(data=sen_contours,aes(label=region),size=2.5)+
+   scale_color_manual(values = c("blue", "red","green","yellow")) +
+ theme_void()+
+ theme(legend.position = "right")+
+ labs(title="carte des PME par niveau d'instruction",color="niveau d'instruction")
+```
+
+### 1.3.3Analyse spatiale de votre choix (projet cartographie)
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+library(sf)
+projet_map <- st_as_sf(projet, coords = c("gps_menlongitude", "gps_menlatitude")
+                       , crs = 4326)
+# Par exemple, représenter le nombre de PME par situation proprietaire ou locataire
+
+ # contours
+ sen_contours <- st_read("Limite_Région.shp")
+ names(sen_contours)[1] <-"region" 
+ ggplot()+
+   geom_sf(data=sen_contours,fill="beige",color="black")+
+   geom_sf(data=projet_map,aes(color=proprietaire_locataire),size=2.5)+
+   geom_sf_text(data=sen_contours,aes(label=region),size=2.5)+
+   scale_color_manual(values = c("blue","green")) +
+ theme_void()+
+ theme(legend.position = "right")+
+ labs(title="carte des PME par situation proprietaire oulocataire",color="proprietaire_locataire")
+```
+
+{{< pagebreak >}}
+
+#Partie II
+
+##2.1 Nettoyage et gestion des données
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+library(dplyr)
+library(readxl)
+
+# Importer les données de la feuille 1 du fichier Excel
+data_feuille1 <- read_excel("Base_Partie 2.xlsx", sheet = 1)
+```
+
+###2.1.1 Renommer la variable "country_destination" en "destination" et remplacer les valeurs négatives par NA
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+data_feuille1 <- data_feuille1 %>%
+  rename(destination = country_destination) %>%
+  mutate(destination = ifelse(destination < 0, NA, destination))
+```
+
+###2.1.2 Créer une nouvelle variable avec des tranches d'âge de 5 ans en utilisant la variable "age"
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+Tranche_age<- data_feuille1 %>%
+  mutate(age_group = cut(age, breaks = seq(0, max(age), by = 5)))
+```
+
+###2.1.3 Créer une nouvelle variable contenant le nombre d'entretiens réalisés par chaque agent recenseur
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+data_feuille1 <- data_feuille1 %>%
+  group_by(enumerator) %>%
+  mutate(num_entretiens = n()) %>%
+  ungroup()
+```
+
+###2.1.4 Créer une nouvelle variable qui affecte aléatoirement chaque répondant à un groupe de traitement (1) ou de contrôle (0)
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+
+set.seed(123)  # Pour reproduire les mêmes résultats aléatoires
+data_feuille1 <- data_feuille1 %>%
+  mutate(groupe_traitement = sample(c(0, 1), size = n(), replace = TRUE))
+```
+
+###2.1.5 Fusionner la taille de la population de chaque district avec l'ensemble de données
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+# Importer les données de la feuille 2 du fichier Excel
+data_feuille2 <- read_excel("Base_Partie 2.xlsx", sheet = 2)
+data_feuille1 <- data_feuille1 %>%
+  left_join(data_feuille2, by = "district")
+
+```
+
+###2.1.6 Calculer la durée de l'entretien et indiquer la durée moyenne de l'entretien par enquêteur
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+a <- data_feuille1 %>%
+  mutate(duree_entretien = endtime - starttime) %>%
+  group_by(enumerator) %>%
+  mutate(duree_moyenne_entretien = mean(duree_entretien)) %>%
+  ungroup()
+a
+```
+
+###2.1.7 Renommer toutes les variables de l'ensemble de données en ajoutant le préfixe "endline\_"
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+
+data_feuille1 <- data_feuille1 %>%
+  rename_with(~paste0("endline_", .), everything())
+
+
+#  Faire un tableau 
+tableau_data_feuille_1 <- data.frame(Variables = names(data_feuille1),
+                                         Valeurs_Manquantes = colSums(is.na(data_feuille1)))
+# Convert the data frame to a gt table
+tab_data_feuille_1 <- gt(tableau_data_feuille_1)
+tab_data_feuille_1
+
+
+```
+
+##2.2Analyse et visualisation des données
+
+###2.2.1 Tableau récapitulatif de l'age moyen et d'enfants moyen par district
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+#Analyse et visualisation des données
+library(readxl)
+library(ggplot2)
+library(dplyr)
+# Importer les données de la feuille 2 du fichier Excel
+data_feuille2 <- read_excel("Base_Partie 2.xlsx", sheet = 2)
+
+# Tableau récapitulatif de l'age moyen et d'enfants moyen par district 
+
+tab_Mean <- flextable::as_flextable(data_feuille1 %>% group_by(endline_district) %>% summarise(Age_Moyen = mean(endline_age),Enfant_Moyen =mean(endline_children_num))) 
+tab_Mean
+```
+
+###2.2.2 Test de différence d'âge entre les sexes
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+# Charger les packages nécessaires
+library(dplyr)
+library(gtsummary)
+
+# Créer une copie du dataframe data_feuille1 pour éviter de modifier
+#les données originales
+data_feuille1_copy <- data_feuille1
+
+# Sélectionner les colonnes "endline_sex" et "endline_age"
+appli <- data_feuille1_copy %>%
+  dplyr::select(endline_sex, endline_age) %>%
+  
+  # Créer un résumé de table avec gtsummary
+  gtsummary::tbl_summary(by = endline_sex,
+                         label = list(endline_age ~ "Tranche d'âge"),
+                         statistic = list(endline_age ~ "{mean}"),
+                         percent = "column") %>%
+  
+  # Ajouter le test de différence de moyennes
+  add_difference(test = list(all_continuous() ~ "t.test")) %>%
+  
+  # Ajouter la statistique globale pour l'ensemble des données
+  add_overall() %>%
+  
+  # Convertir en flextable (si vous souhaitez une sortie au format FlexTable)
+  as_flex_table()
+
+# Afficher la table résumée
+appli
+```
+
+###2.2.3 Nuage de points : âge en fonction du nombre d'enfants
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+#Utilisons le package ggplot pour tracer le nuage de points en eliminant la valeur abérante
+nuage_points_age_enfants <- ggplot(filter(data_feuille1,!(endline_age==999)), aes(x = endline_age, 
+y = endline_children_num)) +
+  geom_point() +
+  labs(x = "Âge", y = "Nombre d'enfants") +
+  ggtitle("Nuage de points : Âge en fonction du nombre d'enfants")
+
+nuage_points_age_enfants
+
+```
+
+###2.2.4 Estimation de l'effet de l'appartenance au groupe de traitement sur l'intention de migrer
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE}
+modele_regression <- lm(endline_intention ~endline_groupe_traitement,
+                        data = data_feuille1)
+```
+
+###2.2.5 Tableau de régression avec 3 modèles
+
+```{r message=FALSE, warning=FALSE}
+# Chargez le package gtsummary s'il n'est pas déjà installé
+library(gtsummary)
+
+#installer les  packages nécessaires
+library(sjPlot)
+
+# Modèle A : Modèle vide - Effet du traitement sur les intentions
+model_A <- lm(endline_intention ~endline_groupe_traitement, data = data_feuille1)
+
+# Modèle B : Effet du traitement sur les intentions en tenant compte de l'âge et du sexe
+model_B <- lm(endline_intention ~ endline_groupe_traitement + endline_age + endline_sex, data = data_feuille1)
+
+# Modèle C : Identique au modèle B mais en contrôlant le district
+model_C <- lm(endline_intention ~ endline_groupe_traitement + endline_age + endline_sex + endline_district, data = data_feuille1)
+
+# Créer un tableau récapitulatif des modèles
+tableau_recapitulatif_modele <-tab_model(model_A, model_B, model_C, title = "Tableau de régression", show.se = TRUE, # Afficher les erreurs standards
+show.ci = TRUE) # Afficher les intervalles de confiance
+
+# Afficher le tableau récapitulatif, le test de différence d'âge, le nuage de points et le tableau de régression
+tableau_recapitulatif_modele
+```
